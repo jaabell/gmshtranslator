@@ -19,20 +19,28 @@ gmshTranslator
         self.mshfid = open(mshfilename,"r")
 
         #Initially, parse elements to know what nodes are in which physical groups.
+        reading_physnames = 0
         reading_nodes = 0
         reading_elements = 0
 
         self.__inform__("Initializing...")
 
+        self.Nphys = 0
         self.Nnodes = 0
         self.Nelem = 0
         self.physical_groups = []
         self.nodes_in_physical_groups = {}
+        self.physical_group_dims = {}
+        self.physical_group_names = {}
 
         linenumber = 1
         for line in self.mshfid:
             #################################################
             # Identify begining of nodes and elements sections
+            if line.find("$PhysicalNames") >= 0:
+                reading_physnames = 1
+                continue
+
             if line.find("$Nodes") >= 0:
                 reading_nodes = 1
                 continue
@@ -44,6 +52,9 @@ gmshTranslator
 
             #################################################
             #Identify end of nodes and element sections
+            if line.find("$EndPhysicalNames") >= 0:
+                reading_physnames = 0
+                continue
             if line.find("$EndElements") >= 0:
                 reading_elements = 0
                 continue
@@ -53,6 +64,12 @@ gmshTranslator
             #################################################
         
             #If this is the first line of nodes, read the number of nodes. 
+            if reading_physnames == 1:
+                self.Nphys = sp.int32(line)
+                self.__inform__("Mesh has " + str(self.Nphys) + " physical groups.")
+                reading_physnames = 2
+                continue
+
             if reading_nodes == 1:
                 self.Nnodes = sp.int32(line)
                 self.__inform__("Mesh has " + str(self.Nnodes) + " nodes.")
@@ -65,6 +82,14 @@ gmshTranslator
                 self.__inform__("Mesh has " + str(self.Nelem) + " elements.")
                 reading_elements = 2
                 continue
+
+            if reading_physnames == 2:
+                sl = line.split()
+                grpdim  = sp.int32(sl[0])  # spatial dimension of the physical group (0 = point, 1 = line, 2 = surface, 3 = volume)
+                physgrp = sp.int32(sl[1])  # group number
+                grpname = ( " ".join(sl[2:]) )[1:-1]  # strip quotation marks
+                self.physical_group_dims[physgrp]  = grpdim
+                self.physical_group_names[physgrp] = grpname
 
             #Now parse elements and populate the list of nodes in groups
             if reading_elements == 2:
@@ -97,8 +122,13 @@ gmshTranslator
         self.__inform__("Processed " + str(linenumber) +" lines.")
         self.__inform__("There are " + str(len(self.physical_groups)) + " physical groups available: ")
         for g in self.physical_groups:
-            self.__inform__("     > " + str(g))
+            self.__inform__("     > %s: \"%s\" (dimension %d)" % (str(g), self.physical_group_names[g], self.physical_group_dims[g]))
 
+        # create inverse mapping from names -> IDs so that the user can refer to physical groups by name
+        #
+        self.physical_groups_by_name = {}
+        for k,v in self.physical_group_names.items():
+            self.physical_groups_by_name[v] = k
 
         self.nodes_rules = []
         self.elements_rules = []
