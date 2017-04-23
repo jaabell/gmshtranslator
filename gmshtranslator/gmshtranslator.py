@@ -1,4 +1,4 @@
-import scipy as sp
+-import scipy as sp
 import sys
 
 class gmshTranslator:
@@ -21,18 +21,27 @@ gmshTranslator
         #Initially, parse elements to know what nodes are in which physical groups.
         reading_nodes = 0
         reading_elements = 0
+        reading_physgrps = 0
 
         self.__inform__("Initializing...")
 
         self.Nnodes = 0
+        self.Nphysgrps = 0
         self.Nelem = 0
         self.physical_groups = []
+        self.physical_groups_names = {}
         self.nodes_in_physical_groups = {}
 
         linenumber = 1
         for line in self.mshfid:
+            # print line
             #################################################
-            # Identify begining of nodes and elements sections
+            # Identify begining of nodes and elements sections or physgrps sections
+
+            if line.find("$PhysicalNames") >= 0:
+                reading_physgrps = 1
+                continue
+
             if line.find("$Nodes") >= 0:
                 reading_nodes = 1
                 continue
@@ -44,6 +53,9 @@ gmshTranslator
 
             #################################################
             #Identify end of nodes and element sections
+            if line.find("$EndPhysicalNames") >= 0:
+                reading_physgrps  = 0
+                continue
             if line.find("$EndElements") >= 0:
                 reading_elements = 0
                 continue
@@ -52,6 +64,16 @@ gmshTranslator
                 continue
             #################################################
         
+            #If this is the first line of physgrps, read the number of nodes. 
+            if reading_physgrps == 1:
+                self.Nphysgrps = sp.int32(line)
+                self.__inform__("Mesh has " + str(self.Nphysgrps) + " physical groups defined.")
+                reading_physgrps = 2
+                continue
+
+
+
+
             #If this is the first line of nodes, read the number of nodes. 
             if reading_nodes == 1:
                 self.Nnodes = sp.int32(line)
@@ -64,6 +86,12 @@ gmshTranslator
                 self.Nelem = sp.int32(line)
                 self.__inform__("Mesh has " + str(self.Nelem) + " elements.")
                 reading_elements = 2
+                continue
+
+
+            if reading_physgrps == 2:
+                sl = line.split()
+                self.physical_groups_names[sl[2].replace("\"","")] = int(sl[1])
                 continue
 
             #Now parse elements and populate the list of nodes in groups
@@ -96,8 +124,9 @@ gmshTranslator
         #end for line
         self.__inform__("Processed " + str(linenumber) +" lines.")
         self.__inform__("There are " + str(len(self.physical_groups)) + " physical groups available: ")
-        for g in self.physical_groups:
-            self.__inform__("     > " + str(g))
+        for physgrp in self.physical_groups_names:
+            g = self.physical_groups_names[physgrp]
+            self.__inform__("     > {0:4.0f} : ".format(g) + physgrp) 
 
 
         self.nodes_rules = []
