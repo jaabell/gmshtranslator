@@ -1,3 +1,4 @@
+from __future__ import print_function
 import scipy as sp
 import sys
 
@@ -247,7 +248,7 @@ gmshTranslator
 ####################################################################################################
 ####################################################################################################
     def __inform__(self, msg):
-        print "gmshTranslator: " + msg
+        print ("gmshTranslator: " + msg)
 
 
 
