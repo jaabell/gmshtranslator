@@ -1,4 +1,5 @@
--import scipy as sp
+from __future__ import print_function
+import scipy as sp
 import sys
 
 class gmshTranslator:
@@ -19,27 +20,26 @@ gmshTranslator
         self.mshfid = open(mshfilename,"r")
 
         #Initially, parse elements to know what nodes are in which physical groups.
+        reading_physnames = 0
         reading_nodes = 0
         reading_elements = 0
-        reading_physgrps = 0
 
         self.__inform__("Initializing...")
 
+        self.Nphys = 0
         self.Nnodes = 0
-        self.Nphysgrps = 0
         self.Nelem = 0
         self.physical_groups = []
-        self.physical_groups_names = {}
         self.nodes_in_physical_groups = {}
+        self.physical_group_dims = {}
+        self.physical_group_names = {}
 
         linenumber = 1
         for line in self.mshfid:
-            # print line
             #################################################
-            # Identify begining of nodes and elements sections or physgrps sections
-
+            # Identify begining of nodes and elements sections
             if line.find("$PhysicalNames") >= 0:
-                reading_physgrps = 1
+                reading_physnames = 1
                 continue
 
             if line.find("$Nodes") >= 0:
@@ -54,7 +54,7 @@ gmshTranslator
             #################################################
             #Identify end of nodes and element sections
             if line.find("$EndPhysicalNames") >= 0:
-                reading_physgrps  = 0
+                reading_physnames = 0
                 continue
             if line.find("$EndElements") >= 0:
                 reading_elements = 0
@@ -64,17 +64,13 @@ gmshTranslator
                 continue
             #################################################
         
-            #If this is the first line of physgrps, read the number of nodes. 
-            if reading_physgrps == 1:
-                self.Nphysgrps = sp.int32(line)
-                self.__inform__("Mesh has " + str(self.Nphysgrps) + " physical groups defined.")
-                reading_physgrps = 2
+            #If this is the first line of nodes, read the number of nodes. 
+            if reading_physnames == 1:
+                self.Nphys = sp.int32(line)
+                self.__inform__("Mesh has " + str(self.Nphys) + " physical groups.")
+                reading_physnames = 2
                 continue
 
-
-
-
-            #If this is the first line of nodes, read the number of nodes. 
             if reading_nodes == 1:
                 self.Nnodes = sp.int32(line)
                 self.__inform__("Mesh has " + str(self.Nnodes) + " nodes.")
@@ -88,11 +84,13 @@ gmshTranslator
                 reading_elements = 2
                 continue
 
-
-            if reading_physgrps == 2:
+            if reading_physnames == 2:
                 sl = line.split()
-                self.physical_groups_names[sl[2].replace("\"","")] = int(sl[1])
-                continue
+                grpdim  = sp.int32(sl[0])  # spatial dimension of the physical group (0 = point, 1 = line, 2 = surface, 3 = volume)
+                physgrp = sp.int32(sl[1])  # group number
+                grpname = ( " ".join(sl[2:]) )[1:-1]  # strip quotation marks
+                self.physical_group_dims[physgrp]  = grpdim
+                self.physical_group_names[physgrp] = grpname
 
             #Now parse elements and populate the list of nodes in groups
             if reading_elements == 2:
@@ -124,10 +122,14 @@ gmshTranslator
         #end for line
         self.__inform__("Processed " + str(linenumber) +" lines.")
         self.__inform__("There are " + str(len(self.physical_groups)) + " physical groups available: ")
-        for physgrp in self.physical_groups_names:
-            g = self.physical_groups_names[physgrp]
-            self.__inform__("     > {0:4.0f} : ".format(g) + physgrp) 
+        for g in self.physical_groups:
+            self.__inform__("     > %s: \"%s\" (dimension %d)" % (str(g), self.physical_group_names[g], self.physical_group_dims[g]))
 
+        # create inverse mapping from names -> IDs so that the user can refer to physical groups by name
+        #
+        self.physical_groups_by_name = {}
+        for k,v in self.physical_group_names.items():
+            self.physical_groups_by_name[v] = k
 
         self.nodes_rules = []
         self.elements_rules = []
@@ -276,7 +278,7 @@ gmshTranslator
 ####################################################################################################
 ####################################################################################################
     def __inform__(self, msg):
-        print "gmshTranslator: " + msg
+        print ("gmshTranslator: " + msg)
 
 
 
