@@ -267,12 +267,22 @@ gmshTranslator
                         pass
                 else:
                     self.__error__(".msh file has < 2 tags element with tag " + str(eletag))
-
-
         pass
 
+    #Helper functions to do typical tasks, such as checking if node or element is in a group
+    def is_element_in(self, this_physgrp):
+        def is_element_in_physgrp(eletag,eletype,physgrp,nodes):
+            if this_physgrp == "!any":
+                return True
+            return this_physgrp == physgrp
+        return is_element_in_physgrp
 
-
+    def is_node_in(self, this_physgrp):
+        def is_node_in_physgrp(tag,x,y,z,physgroups):
+            if this_physgrp == "!any":
+                return True
+            return this_physgrp in physgroups
+        return is_node_in_physgrp
 
 
 ####################################################################################################
