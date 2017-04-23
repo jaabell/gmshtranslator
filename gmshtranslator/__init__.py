@@ -1,4 +1,5 @@
 from __future__ import print_function
+from gmshtranslator import gmshTranslator
 
 print ("gmshtranslator friendly reminder: rules and actions prototypes\n\n")
 print ("def node_condition(tag,x,y,z,physgroups): ")
