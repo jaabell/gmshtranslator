@@ -274,14 +274,14 @@ gmshTranslator
         def is_element_in_physgrp(eletag,eletype,physgrp,nodes):
             if this_physgrp == "!any":
                 return True
-            return this_physgrp == physgrp
+            return self.physical_groups_by_name[this_physgrp] == physgrp
         return is_element_in_physgrp
 
     def is_node_in(self, this_physgrp):
         def is_node_in_physgrp(tag,x,y,z,physgroups):
             if this_physgrp == "!any":
                 return True
-            return this_physgrp in physgroups
+            return self.physical_groups_by_name[this_physgrp] in physgroups
         return is_node_in_physgrp
 
 
