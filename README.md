@@ -8,7 +8,7 @@ gmshtranslator
 ###Introduction
 
 Parse [gmsh](geuz.org/gmsh) `.msh` files and execute python code accordingly. Most useful to 
-translate `.msh` files into other file formats or into input for simulation software.
+translate `.msh` files into other file formats or into input for simulation software. Go to [www.joseabell.com](www.joseabell.com), all of the models I've created use *gmshtranslator*.
 
 ###Requirements
 
@@ -21,6 +21,8 @@ Run
 	python setup.py install
 
 ###Usage
+
+Here is a short blog-post I wrote on using gmshtranslator with python and opensees to create models: [http://www.joseabell.com/using-my-gmshtranslator-python-tool-to-interface-gmsh-with-opensees.html](http://www.joseabell.com/using-my-gmshtranslator-python-tool-to-interface-gmsh-with-opensees.html).
 
 `gmshtranslator` works by parsing a gmsh mesh in the `.msh` format. Initialize by calling
 
