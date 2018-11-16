@@ -1,6 +1,8 @@
 gmshtranslator
 ==============
 
+Note: This project seems inactive, I have not seen reasons to do great changes in it and use it on a routine basis. Will need to update soon to gmsh 4.0 msh format. Any help is appreciated. 
+
 ### Table of contents
 
 [toc]
