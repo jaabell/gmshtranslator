@@ -37,6 +37,7 @@ gmshTranslator
         self.physical_group_names = {}
         self.Periodic_nodes = []
         self.i_periodic = 0
+        self.maxNodeTag = -1
 
         linenumber = 1
         for line in self.mshfid:
@@ -89,8 +90,13 @@ gmshTranslator
                 self.Nnodes = sp.int32(line)
                 self.__inform__("Mesh has " + str(self.Nnodes) + " nodes.")
                 reading_nodes = 2
+                self.maxNodeTag = -1
                 # self.node_partitions = [[] for dum in range(self.Nnodes+1)]
                 continue
+
+            if reading_nodes == 2:
+                tag = sp.int32(line.split()[0])
+                self.maxNodeTag = max(self.maxNodeTag, tag)
             
             #If this is the first line of elements, read the number of elements
             if reading_elements == 1:
@@ -141,7 +147,7 @@ gmshTranslator
                     if physgrp in self.physical_groups:
                         self.nodes_in_physical_groups[physgrp][nodelist] = 1
                     else:
-                        self.nodes_in_physical_groups[physgrp] = -sp.ones(self.Nnodes+1, dtype=sp.int16)
+                        self.nodes_in_physical_groups[physgrp] = -sp.ones(self.maxNodeTag+1, dtype=sp.int16)
                         self.nodes_in_physical_groups[physgrp][nodelist] = 1
                         self.physical_groups.append(physgrp)
                         pass
