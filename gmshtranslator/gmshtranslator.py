@@ -89,7 +89,7 @@ gmshTranslator
                 self.Nnodes = sp.int32(line)
                 self.__inform__("Mesh has " + str(self.Nnodes) + " nodes.")
                 reading_nodes = 2
-                self.node_partitions = [{} for dum in range(self.Nnodes+1)]
+                self.node_partitions = [[] for dum in range(self.Nnodes+1)]
                 continue
             
             #If this is the first line of elements, read the number of elements
@@ -135,7 +135,7 @@ gmshTranslator
 
                     if npartitions > 0:
                         for n in nodelist:
-                            self.node_partitions[n].update(parts)
+                            self.node_partitions[n].append(parts)
 
 
                     if physgrp in self.physical_groups:
