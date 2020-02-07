@@ -23,16 +23,20 @@ gmshTranslator
         reading_physnames = 0
         reading_nodes = 0
         reading_elements = 0
+        reading_periodic = 0
 
         self.__inform__("Initializing...")
 
         self.Nphys = 0
         self.Nnodes = 0
         self.Nelem = 0
+        self.Nperiodic = 0
         self.physical_groups = []
         self.nodes_in_physical_groups = {}
         self.physical_group_dims = {}
         self.physical_group_names = {}
+        self.Periodic_nodes = []
+        self.i_periodic = 0
 
         linenumber = 1
         for line in self.mshfid:
@@ -49,6 +53,11 @@ gmshTranslator
             if line.find("$Elements") >= 0:
                 reading_elements = 1
                 continue    
+
+            if line.find("$Periodic") >= 0:
+                reading_periodic = 1
+                continue
+
             #################################################    
 
             #################################################
@@ -62,6 +71,11 @@ gmshTranslator
             if line.find("$EndNodes") >= 0:
                 reading_nodes  = 0
                 continue
+            if line.find("$EndPeriodic") >= 0:
+                reading_periodic  = 0
+                continue
+
+
             #################################################
         
             #If this is the first line of nodes, read the number of nodes. 
@@ -75,6 +89,7 @@ gmshTranslator
                 self.Nnodes = sp.int32(line)
                 self.__inform__("Mesh has " + str(self.Nnodes) + " nodes.")
                 reading_nodes = 2
+                self.node_partitions = [{} for dum in range(self.Nnodes+1)]
                 continue
             
             #If this is the first line of elements, read the number of elements
@@ -83,6 +98,9 @@ gmshTranslator
                 self.__inform__("Mesh has " + str(self.Nelem) + " elements.")
                 reading_elements = 2
                 continue
+
+
+            #################################################
 
             if reading_physnames == 2:
                 sl = line.split()
@@ -95,18 +113,30 @@ gmshTranslator
             #Now parse elements and populate the list of nodes in groups
             if reading_elements == 2:
                 sl = sp.array( line.split(), dtype = sp.int32)
-                
-                eletag = sl[0]
-                eletype = sl[1]
-                ntags = sl[2]
-                physgrp = 0
-                partition = 0
+
+                eletag = sp.int32(sl[0])
+                eletype = sp.int32(sl[1])
+                ntags = sp.int32(sl[2])
+                physgrp = sp.int32(sl[3])
+                entitynum = sp.int32(sl[4])
+                npartitions = 0
+                parts = []
+                if ntags > 2:
+                    npartitions = sp.int32(sl[5])
+                    parts = sp.int32(sl[6:])
+                    # for p in range(npartitions):
+                        # parts.append(sl[6+p])
 
                 if ntags >= 2:
                     physgrp = sl[3]
                     nodelist = sl[(3 + ntags)::]
 
                     # sys.stdout.write(str(nodelist.size) + " ")
+
+                    if npartitions > 0:
+                        for n in nodelist:
+                            self.node_partitions[n].update(parts)
+
 
                     if physgrp in self.physical_groups:
                         self.nodes_in_physical_groups[physgrp][nodelist] = 1
@@ -119,11 +149,51 @@ gmshTranslator
                     self.__error__(".msh file has < 2 tags at line " + str(linenumber))
 
             linenumber += 1
+
+            if reading_periodic == 1:
+                self.Nperiodic = sp.int32(line)
+                self.Nnodes_periodic = sp.zeros(self.Nperiodic, dtype=sp.int32)
+                self.__inform__("Mesh has " + str(self.Nperiodic) + " periodic entities.")
+                reading_periodic = 2
+                continue
+
+            if reading_periodic == 2:
+                reading_periodic = 3
+                continue
+
+            if reading_periodic == 3:
+                if line.find("Affine") >= 0:
+                    continue
+                self.Nnodes_periodic[self.i_periodic] = sp.int32(line)
+                self.Periodic_nodes.append(sp.zeros((self.Nnodes_periodic[self.i_periodic],2), dtype=sp.int32))
+                reading_periodic = 4
+                continue
+
+            if reading_periodic >= 4:
+                sl = sp.array( line.split(), dtype = sp.int32)
+                j = reading_periodic - 4
+                self.Periodic_nodes[self.i_periodic][j, 0] = sl[0]
+                self.Periodic_nodes[self.i_periodic][j, 1] = sl[1]
+                reading_periodic += 1
+                if j == self.Nnodes_periodic[self.i_periodic] - 1:
+                    reading_periodic = 2
+                    self.i_periodic += 1
+
+
+
+                
+
+
+
+
+
+
         #end for line
         self.__inform__("Processed " + str(linenumber) +" lines.")
         self.__inform__("There are " + str(len(self.physical_groups)) + " physical groups available: ")
         for g in self.physical_groups:
-            self.__inform__("     > %s: \"%s\" (dimension %d)" % (str(g), self.physical_group_names[g], self.physical_group_dims[g]))
+            self.__inform__("%s = %s # (dimension %d)" % (self.physical_group_names[g], str(g), self.physical_group_dims[g]), headline=False)
+            # self.__inform__("     > %s: \"%s\" (dimension %d)" % (str(g), self.physical_group_names[g], self.physical_group_dims[g]))
 
         # create inverse mapping from names -> IDs so that the user can refer to physical groups by name
         #
@@ -255,23 +325,35 @@ gmshTranslator
                 eletype = sp.int32(sl[1])
                 ntags = sp.int32(sl[2])
                 physgrp = sp.int32(sl[3])
-                partition = sp.int32(sl[4])
+                entitynum = sp.int32(sl[4])
+                npartitions = 0
+                parts = []
+                if ntags > 2:
+                    npartitions = sp.int32(sl[5])
+                    for p in range(npartitions):
+                        parts.append(sl[6+p])
 
                 if ntags >= 2:
                     physgrp = sp.int32(sl[3])
                     nodes = sp.array(sl[(3 + ntags)::], dtype=sp.int32)
             
-                    for condition, action in self.elements_rules:
-                        if condition(eletag,eletype,physgrp,nodes):
-                            action(eletag,eletype,physgrp,nodes)
-                        pass
+                    if npartitions == 0:
+                        for condition, action in self.elements_rules:
+                            if condition(eletag,eletype,physgrp,nodes):
+                                action(eletag,eletype,physgrp,nodes)
+                            pass
+                    elif npartitions > 0:
+                        for condition, action in self.elements_rules:
+                            if condition(eletag,eletype,physgrp,nodes,npartitions,parts):
+                                action(eletag,eletype,physgrp,nodes,npartitions,parts)
+                            pass  
                 else:
                     self.__error__(".msh file has < 2 tags element with tag " + str(eletag))
         pass
 
     #Helper functions to do typical tasks, such as checking if node or element is in a group
     def is_element_in(self, this_physgrp):
-        def is_element_in_physgrp(eletag,eletype,physgrp,nodes):
+        def is_element_in_physgrp(eletag,eletype,physgrp,nodes,npart=0,parts=[]):
             if this_physgrp == "!any":
                 return True
             return self.physical_groups_by_name[this_physgrp] == physgrp
@@ -287,8 +369,11 @@ gmshTranslator
 
 ####################################################################################################
 ####################################################################################################
-    def __inform__(self, msg):
-        print ("gmshTranslator: " + msg)
+    def __inform__(self, msg, headline=True):
+        if headline:
+            print ("gmshTranslator: " + msg)
+        else:
+            print (msg)
 
 
 
